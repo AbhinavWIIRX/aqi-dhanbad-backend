@@ -14,6 +14,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel  
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -41,6 +43,7 @@ app.add_middleware(
 
 MODELS_DIR  = Path(__file__).parent.parent / "models"
 DATA_DIR    = Path(__file__).parent.parent / "data"
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 RELOAD_FLAG = MODELS_DIR / ".reload_needed"
 
 DHANBAD_MONTHLY_PM25 = {1:130,2:110,3:85,4:70,5:65,6:45,7:35,8:30,9:40,10:75,11:120,12:145}
@@ -89,6 +92,9 @@ class ModelStore:
 
 
 store = ModelStore()
+
+if FRONTEND_DIR.exists():
+    app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
@@ -187,6 +193,14 @@ def pm_to_aqi(pm25, pm10):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.get("/")
+def frontend_home():
+    index_path = FRONTEND_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {"status": "ok", "message": "AQI Dhanbad backend is running"}
+
 
 @app.get("/health")
 def health():

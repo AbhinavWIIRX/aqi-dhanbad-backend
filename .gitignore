@@ -9,7 +9,8 @@ logs/*.log
 models/new/
 models/.reload_needed
 aqi_dhanbad_backend_deploy.zip
-frontend/
+frontend/*
+!frontend/index.html
 airvision (2).html
 dhanbad_aqi_frontend (1).html
 dhanbad_aqi_v2.html

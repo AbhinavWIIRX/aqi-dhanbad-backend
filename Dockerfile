@@ -12,6 +12,7 @@ COPY api ./api
 COPY src ./src
 COPY models ./models
 COPY data ./data
+COPY frontend ./frontend
 COPY start.py .
 
 EXPOSE 8000
