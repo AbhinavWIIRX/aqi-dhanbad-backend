@@ -76,6 +76,8 @@ RUN_SCHEDULER=false python start.py
 
 The scheduler runs every Sunday at 02:00 IST. On free hosting plans that sleep, scheduled retraining only runs while the service is awake. For reliable weekly retraining, use an always-on instance or run `python src/scheduler.py --now` from the same deployed filesystem.
 
+Only one web process should be created on Railway. The scheduler runs inside `start.py`; do not create a separate Railway worker unless you also configure persistent shared storage for model/data files.
+
 ## Railway Deployment
 
 Push this backend repo to GitHub, then create a Railway project from that GitHub repo.
