@@ -338,9 +338,12 @@ footer{text-align:center;font-size:12px;color:var(--text-muted);padding:24px 0 0
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
 const LAT=23.7957,LON=86.4304;
-const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'https://web-production-bab92.up.railway.app'
-  : window.location.origin;
+const DEFAULT_BACKEND_URL = 'https://web-production-bab92.up.railway.app';
+const BACKEND_URL = (
+  window.AIRVISION_BACKEND_URL ||
+  new URLSearchParams(window.location.search).get('api') ||
+  DEFAULT_BACKEND_URL
+).replace(/\/$/, '');
 
 // ── PAGE NAVIGATION ──────────────────────────────────────────────────────────
 function showPage(n, btn) {
@@ -437,9 +440,12 @@ async function fetchAll() {
       throw new Error('Backend API request failed');
     }
     const [now, forecast, daily, debug] = await Promise.all([nowRes.json(), forecastRes.json(), dailyRes.json(), debugRes.json()]);
+    const weather = await fetch(`${BACKEND_URL}/weather/7day`)
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null);
     renderCurrentWeather(debug);
     renderAQI(now);
-    renderWeatherForecastFromBackend(forecast);
+    renderWeatherForecastFromBackend(weather);
     renderAQIForecast(daily);
     renderChart(forecast);
     renderPollutants(now, debug);
@@ -453,8 +459,8 @@ async function fetchAll() {
 function renderCurrentWeather(w) {
   document.getElementById('tempVal').textContent = Math.round(w.temperature ?? 0);
   document.getElementById('humVal').textContent = Math.round(w.humidity ?? 0);
-  document.getElementById('windVal').textContent = '--';
-  document.getElementById('pressVal').textContent = '--';
+  document.getElementById('windVal').textContent = Math.round((w.wind_speed ?? 0) * 3.6);
+  document.getElementById('pressVal').textContent = Math.round(w.pressure ?? 0);
 }
 
 function renderAQI(now) {
@@ -504,18 +510,29 @@ function renderWeatherForecast(forecast) {
 }
 
 function renderWeatherForecastFromBackend(forecast) {
-  const items = (forecast.forecasts || []).slice(0, 7);
   const today = new Date().toDateString();
-  document.getElementById('weatherCards').innerHTML = items.map((item, i) => {
-    const dd = new Date(item.timestamp);
+  const cards = (forecast?.days || []).slice(0, 7);
+  if (!cards.length) {
+    document.getElementById('weatherCards').innerHTML = `
+      <div class="weather-day today">
+        <div class="wd-name">Weather</div>
+        <div class="wd-icon">☁️</div>
+        <div class="wd-temp">--°</div>
+        <div class="wd-desc">Forecast unavailable</div>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('weatherCards').innerHTML = cards.map((item, i) => {
+    const dd = new Date(item.timestamp || item.date);
+    const temp = Math.round(item.temp_day ?? item.temp_max ?? item.temp_min ?? 0);
+    const desc = item.weather_main || item.weather_desc || 'Forecast';
     const isToday = dd.toDateString() === today || i === 0;
-    const aqi = Math.round(item.aqi_predicted || 0);
-    const info = aqiInfo(aqi);
     return `<div class="weather-day ${isToday?'today':''}">
       <div class="wd-name">${isToday?'Today':dd.toLocaleDateString('en-IN',{weekday:'short'})}</div>
-      <div class="wd-icon">AQI</div>
-      <div class="wd-temp" style="color:${info.color}">${aqi}</div>
-      <div class="wd-desc">${item.aqi_category || info.label}</div>
+      <div class="wd-icon">${weatherIcon(item.weather_id, item.weather_icon?.endsWith('n') ? 'n' : 'd')}</div>
+      <div class="wd-temp">${temp}°</div>
+      <div class="wd-desc">${desc}</div>
     </div>`;
   }).join('');
 }

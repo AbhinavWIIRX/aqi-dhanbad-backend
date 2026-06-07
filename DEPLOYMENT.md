@@ -13,6 +13,8 @@ CORS_ORIGINS=*
 
 `OWM_API_KEY` is required for `/aqi/now`, `/aqi/forecast`, `/aqi/daily`, `/debug/owm`, data collection, and scheduled retraining. `/health` can run without calling OpenWeatherMap.
 
+`/weather/7day` uses OpenWeather One Call API 3.0 for a true daily 7-day weather forecast. Enable One Call API access for the same `OWM_API_KEY`; otherwise the AQI dashboard will still work, but the weather cards will show "Forecast unavailable".
+
 ## Files That Must Be Deployed
 
 ```text
@@ -101,6 +103,22 @@ After deploy, open:
 ```bash
 https://your-railway-domain/health
 ```
+
+## Frontend Deployment
+
+The static frontend lives at `frontend/index.html`. It calls the deployed backend at:
+
+```text
+https://web-production-bab92.up.railway.app
+```
+
+If the Railway backend domain changes, update `DEFAULT_BACKEND_URL` in `frontend/index.html`, or test another backend without editing the file by opening:
+
+```text
+https://your-frontend-domain/?api=https://your-railway-domain
+```
+
+When the frontend is hosted separately from the backend, keep `CORS_ORIGINS=*` on Railway during testing, or set it to the exact frontend origin after confirming the site works.
 
 ## Docker Deployment
 

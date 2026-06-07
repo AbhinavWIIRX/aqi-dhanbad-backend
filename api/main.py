@@ -27,7 +27,8 @@ from feature_engineering import (
 )
 from owm_client import (
     get_current_weather, get_current_air_pollution,
-    get_merged_forecast, aqi_to_category, aqi_health_message,
+    get_merged_forecast, get_daily_weather_forecast,
+    aqi_to_category, aqi_health_message,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -119,6 +120,14 @@ class ForecastItem(BaseModel):
     aqi_category:  str
     pm25:          float | None = None
     pm10:          float | None = None
+    temperature:   float | None = None
+    humidity:      float | None = None
+    wind_speed:    float | None = None
+    pressure:      float | None = None
+    weather_id:    int | None = None
+    weather_main:  str | None = None
+    weather_desc:  str | None = None
+    weather_pod:   str | None = None
 
 class ForecastResponse(BaseModel):
     location:     str
@@ -131,6 +140,27 @@ class DailySummary(BaseModel):
     aqi_max:      float
     aqi_min:      float
     dominant_cat: str
+
+class WeatherDailyItem(BaseModel):
+    date:         str
+    timestamp:    str
+    temp_day:     float | None = None
+    temp_min:     float | None = None
+    temp_max:     float | None = None
+    humidity:     float | None = None
+    pressure:     float | None = None
+    wind_speed:   float | None = None
+    clouds:       float | None = None
+    rain:         float | None = None
+    weather_id:   int | None = None
+    weather_main: str | None = None
+    weather_desc: str | None = None
+    weather_icon: str | None = None
+
+class WeatherDailyResponse(BaseModel):
+    location:     str
+    generated_at: str
+    days:         list[WeatherDailyItem]
 
 class PipelineStatus(BaseModel):
     model_trained_at:   str | None
@@ -325,6 +355,14 @@ def predict_forecast():
             aqi_category=aqi_to_category(aqi),
             pm25=round(pm25_pred, 2),
             pm10=round(pm10_pred, 2),
+            temperature=round(float(frow.get("Temperature", 0)), 1),
+            humidity=round(float(frow.get("Humidity", 0)), 1),
+            wind_speed=round(float(frow.get("WindSpeed", 0)), 2),
+            pressure=round(float(frow.get("Pressure", 0)), 1),
+            weather_id=int(frow["WeatherId"]) if pd.notna(frow.get("WeatherId")) else None,
+            weather_main=frow.get("WeatherMain") if pd.notna(frow.get("WeatherMain")) else None,
+            weather_desc=frow.get("WeatherDesc") if pd.notna(frow.get("WeatherDesc")) else None,
+            weather_pod=frow.get("WeatherPod") if pd.notna(frow.get("WeatherPod")) else None,
         ))
 
     return ForecastResponse(
@@ -348,6 +386,22 @@ def daily_summary():
             dominant_cat=aqi_to_category(group["aqi"].mean()),
         ))
     return summaries
+
+
+@app.get("/weather/7day", response_model=WeatherDailyResponse)
+def weather_7day():
+    """True 7-day daily weather forecast from OpenWeather One Call 3.0."""
+    store.check_and_reload()
+    try:
+        days = get_daily_weather_forecast(days=7)
+    except Exception as e:
+        raise HTTPException(502, f"OWM daily weather forecast error: {e}")
+
+    return WeatherDailyResponse(
+        location="Dhanbad, Jharkhand, India",
+        generated_at=datetime.utcnow().isoformat(),
+        days=days,
+    )
 
 
 @app.get("/pipeline/status", response_model=PipelineStatus)
@@ -394,6 +448,8 @@ def debug_owm():
             "used_pm25":    pm25, "used_pm10": pm10,
             "temperature":  weather["main"]["temp"],
             "humidity":     weather["main"]["humidity"],
+            "wind_speed":   weather["wind"]["speed"],
+            "pressure":     weather["main"]["pressure"],
             "source": "live" if (comp.get("pm2_5") or 0) > 1 else "seasonal_fallback",
         }
     except Exception as e:

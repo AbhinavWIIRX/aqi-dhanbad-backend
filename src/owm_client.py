@@ -109,6 +109,7 @@ def get_forecast_weather(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON) -> 
     })
     rows = []
     for item in data.get("list", []):
+        weather = item.get("weather", [{}])[0]
         rows.append({
             "Timestamp":   pd.to_datetime(item["dt"], unit="s"),
             "Temperature": item["main"]["temp"],
@@ -118,8 +119,47 @@ def get_forecast_weather(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON) -> 
             "Pressure":    item["main"]["pressure"],
             "Clouds":      item.get("clouds", {}).get("all", 0),
             "Rain3h":      item.get("rain", {}).get("3h", 0),
+            "WeatherId":   weather.get("id"),
+            "WeatherMain": weather.get("main"),
+            "WeatherDesc": weather.get("description"),
+            "WeatherPod":  item.get("sys", {}).get("pod", "d"),
         })
     return pd.DataFrame(rows)
+
+
+def get_daily_weather_forecast(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON, days: int = 7) -> list[dict]:
+    """
+    Fetch true daily weather forecast from OpenWeather One Call 3.0.
+    Requires One Call API access for the configured OWM_API_KEY.
+    """
+    data = _get("/data/3.0/onecall", {
+        "lat": lat,
+        "lon": lon,
+        "units": "metric",
+        "exclude": "current,minutely,hourly,alerts",
+    })
+
+    forecasts = []
+    for item in data.get("daily", [])[:days]:
+        weather = item.get("weather", [{}])[0]
+        temp = item.get("temp", {})
+        forecasts.append({
+            "date": pd.to_datetime(item["dt"], unit="s").date().isoformat(),
+            "timestamp": pd.to_datetime(item["dt"], unit="s").isoformat(),
+            "temp_day": temp.get("day"),
+            "temp_min": temp.get("min"),
+            "temp_max": temp.get("max"),
+            "humidity": item.get("humidity"),
+            "pressure": item.get("pressure"),
+            "wind_speed": item.get("wind_speed"),
+            "clouds": item.get("clouds"),
+            "rain": item.get("rain", 0),
+            "weather_id": weather.get("id"),
+            "weather_main": weather.get("main"),
+            "weather_desc": weather.get("description"),
+            "weather_icon": weather.get("icon"),
+        })
+    return forecasts
 
 
 def get_forecast_air_pollution(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON) -> pd.DataFrame:
