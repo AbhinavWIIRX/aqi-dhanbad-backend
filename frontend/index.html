@@ -63,7 +63,7 @@ body{font-family:'Sora',sans-serif;background:var(--sky);color:var(--text);min-h
 .th-unit{font-size:12px;color:var(--text-muted);}
 
 /* WEATHER */
-.weather-cards{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:16px;}
+.weather-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
 .weather-day{background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:14px 8px;text-align:center;backdrop-filter:blur(6px);transition:transform .2s;}
 .weather-day:hover{transform:translateY(-3px);}
 .weather-day.today{border-color:var(--accent);background:rgba(26,111,168,.08);}
@@ -218,8 +218,8 @@ footer{text-align:center;font-size:12px;color:var(--text-muted);padding:24px 0 0
       </div>
     </div>
 
-    <!-- 7-Day Weather -->
-    <div class="section-title">7-Day Weather Forecast</div>
+    <!-- 5-Day Weather -->
+    <div class="section-title">5-Day Weather Forecast</div>
     <div class="weather-cards" id="weatherCards"></div>
 
     <!-- Forecast + Chart -->
@@ -494,7 +494,7 @@ function renderWeatherForecast(forecast) {
     days[d].icons.push({id:item.weather[0].id,pod:item.sys?.pod||'d'});
     days[d].descs.push(item.weather[0].main);
   });
-  document.getElementById('weatherCards').innerHTML = Object.values(days).slice(0,7).map(d=>{
+  document.getElementById('weatherCards').innerHTML = Object.values(days).slice(0,5).map(d=>{
     const avg=Math.round(d.temps.reduce((a,b)=>a+b,0)/d.temps.length);
     const mid=Math.floor(d.icons.length/2);
     const icon=weatherIcon(d.icons[mid].id,d.icons[mid].pod);
@@ -511,7 +511,7 @@ function renderWeatherForecast(forecast) {
 
 function renderWeatherForecastFromBackend(forecast) {
   const today = new Date().toDateString();
-  const cards = (forecast?.days || []).slice(0, 7);
+  const cards = (forecast?.days || []).slice(0, 5);
   if (!cards.length) {
     document.getElementById('weatherCards').innerHTML = `
       <div class="weather-day today">
@@ -591,7 +591,7 @@ function renderMockData() {
   document.getElementById('pm25Val').textContent=55.2; document.getElementById('pm25Bar').style.width='22%';
   document.getElementById('pm10Val').textContent=98.4; document.getElementById('pm10Bar').style.width='23%';
   document.getElementById('advisoryGrid').innerHTML=info.advisory.map(a=>`<div class="advisory-item" style="background:${a.c};border-color:${a.b};"><div class="ai-icon">${a.icon}</div><div class="ai-title" style="color:${a.tc};">${a.title}</div><div class="ai-text" style="color:${a.tc};opacity:.8;">${a.text}</div></div>`).join('');
-  const days=['Today','Mon','Tue','Wed','Thu','Fri','Sat'],icons=['🌤️','☀️','🌦️','☁️','⛈️','🌤️','☀️'],temps=[32,34,29,27,25,30,33];
+  const days=['Today','Mon','Tue','Wed','Thu'],icons=['🌤️','☀️','🌦️','☁️','⛈️'],temps=[32,34,29,27,25];
   document.getElementById('weatherCards').innerHTML=days.map((d,i)=>`<div class="weather-day ${i===0?'today':''}"><div class="wd-name">${d}</div><div class="wd-icon">${icons[i]}</div><div class="wd-temp">${temps[i]}°</div><div class="wd-desc">Partly Cloudy</div></div>`).join('');
   document.getElementById('forecastChips').innerHTML=['Today','Mon','Tue','Wed','Thu'].map((d,i)=>{const vv=[142,118,95,167,88][i];const inf=aqiInfo(vv);return`<div class="forecast-chip"><div class="fc-day">${d}</div><div class="fc-val" style="color:${inf.color}">${vv}</div><div class="fc-status" style="background:${inf.bg};color:${inf.color}">${inf.label.split(' ')[0]}</div></div>`;}).join('');
   document.getElementById('pollutantGrid').innerHTML=[{name:'NO₂',val:48.2,unit:'μg/m³'},{name:'O₃',val:62.1,unit:'μg/m³'},{name:'CO',val:1.2,unit:'mg/m³'},{name:'SO₂',val:18.4,unit:'μg/m³'},{name:'NH₃',val:8.7,unit:'μg/m³'},{name:'NO',val:12.3,unit:'μg/m³'}].map(p=>`<div class="pollutant-item"><div class="pi-name">${p.name}</div><div><span class="pi-val">${p.val}</span><span class="pi-unit"> ${p.unit}</span></div></div>`).join('');
