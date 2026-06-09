@@ -127,40 +127,64 @@ def get_forecast_weather(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON) -> 
     return pd.DataFrame(rows)
 
 
-def get_daily_weather_forecast(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON, days: int = 7) -> list[dict]:
+def get_daily_weather_forecast(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON, days: int = 5) -> list[dict]:
     """
-    Fetch true daily weather forecast from OpenWeather One Call 3.0.
-    Requires One Call API access for the configured OWM_API_KEY.
+    5-day daily weather forecast using FREE OWM /data/2.5/forecast endpoint.
+    Aggregates 3-hour slots into daily summaries. No paid API needed.
     """
-    data = _get("/data/3.0/onecall", {
-        "lat": lat,
-        "lon": lon,
+    from collections import defaultdict
+
+    data = _get("/data/2.5/forecast", {
+        "lat":   lat,
+        "lon":   lon,
         "units": "metric",
-        "exclude": "current,minutely,hourly,alerts",
     })
 
-    forecasts = []
-    for item in data.get("daily", [])[:days]:
-        weather = item.get("weather", [{}])[0]
-        temp = item.get("temp", {})
-        forecasts.append({
-            "date": pd.to_datetime(item["dt"], unit="s").date().isoformat(),
-            "timestamp": pd.to_datetime(item["dt"], unit="s").isoformat(),
-            "temp_day": temp.get("day"),
-            "temp_min": temp.get("min"),
-            "temp_max": temp.get("max"),
-            "humidity": item.get("humidity"),
-            "pressure": item.get("pressure"),
-            "wind_speed": item.get("wind_speed"),
-            "clouds": item.get("clouds"),
-            "rain": item.get("rain", 0),
-            "weather_id": weather.get("id"),
-            "weather_main": weather.get("main"),
-            "weather_desc": weather.get("description"),
-            "weather_icon": weather.get("icon"),
-        })
-    return forecasts
+    daily = defaultdict(list)
+    for item in data.get("list", []):
+        date = pd.to_datetime(item["dt"], unit="s").date().isoformat()
+        daily[date].append(item)
 
+    forecasts = []
+    for date in sorted(daily.keys())[:days]:
+        slots    = daily[date]
+        temps    = [s["main"]["temp"] for s in slots]
+        humidity = [s["main"]["humidity"] for s in slots]
+        pressure = [s["main"]["pressure"] for s in slots]
+        wind     = [s["wind"]["speed"] for s in slots]
+        clouds   = [s.get("clouds", {}).get("all", 0) for s in slots]
+        rain     = sum(s.get("rain", {}).get("3h", 0) for s in slots)
+
+        weather_slots = [s.get("weather", [{}])[0] for s in slots]
+        main_weather  = max(
+            set(w.get("main", "") for w in weather_slots),
+            key=lambda x: sum(1 for w in weather_slots if w.get("main") == x)
+        )
+        desc_weather = max(
+            set(w.get("description", "") for w in weather_slots),
+            key=lambda x: sum(1 for w in weather_slots if w.get("description") == x)
+        )
+        icon = next((w.get("icon") for w in weather_slots if w.get("main") == main_weather), None)
+        wid  = next((w.get("id")   for w in weather_slots if w.get("main") == main_weather), None)
+
+        forecasts.append({
+            "date":         date,
+            "timestamp":    f"{date}T12:00:00",
+            "temp_day":     round(sum(temps) / len(temps), 1),
+            "temp_min":     round(min(temps), 1),
+            "temp_max":     round(max(temps), 1),
+            "humidity":     round(sum(humidity) / len(humidity), 1),
+            "pressure":     round(sum(pressure) / len(pressure), 1),
+            "wind_speed":   round(sum(wind) / len(wind), 2),
+            "clouds":       round(sum(clouds) / len(clouds), 1),
+            "rain":         round(rain, 2),
+            "weather_id":   wid,
+            "weather_main": main_weather,
+            "weather_desc": desc_weather,
+            "weather_icon": icon,
+        })
+
+    return forecasts
 
 def get_forecast_air_pollution(lat: float = DHANBAD_LAT, lon: float = DHANBAD_LON) -> pd.DataFrame:
     """
@@ -248,29 +272,27 @@ OWM_TO_LABEL = {
     5: "Very Poor",
 }
 
-CPCB_BREAKPOINTS = [50, 100, 200, 300, 400, 500]
-CPCB_LABELS      = ["Good", "Satisfactory", "Moderate", "Poor", "Very Poor", "Severe"]
+US_AQI_BREAKPOINTS = [50, 100, 150, 200, 300, 500]
+US_AQI_LABELS      = ["Good", "Moderate", "Unhealthy for Sensitive Groups", "Unhealthy", "Very Unhealthy", "Hazardous"]
 
 
 def aqi_to_category(aqi: float) -> str:
-    for bp, label in zip(CPCB_BREAKPOINTS, CPCB_LABELS):
+    for bp, label in zip(US_AQI_BREAKPOINTS, US_AQI_LABELS):
         if aqi <= bp:
             return label
-    return "Severe"
-
+    return "Hazardous"
 
 def aqi_health_message(aqi: float) -> str:
     cat = aqi_to_category(aqi)
     messages = {
-        "Good":         "Air quality is good. Enjoy outdoor activities.",
-        "Satisfactory": "Air is acceptable. Sensitive groups should limit prolonged outdoor exertion.",
-        "Moderate":     "Sensitive individuals may experience symptoms. Reduce outdoor time.",
-        "Poor":         "Everyone may experience health effects. Avoid outdoor activities.",
-        "Very Poor":    "Health alert — serious effects for all. Stay indoors.",
-        "Severe":       "HAZARDOUS. Do not go outside. Emergency conditions.",
+        "Good":                              "Air quality is good. Safe for all outdoor activities.",
+        "Moderate":                          "Unusually sensitive people should consider limiting prolonged outdoor exertion.",
+        "Unhealthy for Sensitive Groups":    "Children, elderly, and people with heart/lung disease should reduce outdoor activity.",
+        "Unhealthy":                         "Everyone may experience health effects. Limit prolonged outdoor exertion.",
+        "Very Unhealthy":                    "Health alert — everyone should avoid prolonged outdoor activity.",
+        "Hazardous":                         "HAZARDOUS. Emergency conditions. Everyone should avoid all outdoor activity.",
     }
     return f"[{cat}] {messages.get(cat, '')}"
-
 
 if __name__ == "__main__":
     # Quick test — replace with your API key in env
